@@ -463,11 +463,14 @@ class BuildGroupAttachmentTest(TestCase, PerformanceIssueTestCase, OccurrenceTes
     def test_build_group_block_with_workflow_only(self) -> None:
         rule = self.create_project_rule(project=self.project)
         workflow_id = rule.data["actions"][0]["workflow_id"]
-        rule.data["actions"][0].pop("legacy_rule_id")
+        origin = NotificationOrigin(
+            label=rule.label,
+            environment_id=rule.environment_id,
+            workflow_id=workflow_id,
+            legacy_rule_id=None,
+        )
 
-        blocks = SlackIssuesMessageBuilder(
-            self.group, rules=[NotificationOrigin.from_legacy_rule(rule)]
-        ).build()["blocks"]
+        blocks = SlackIssuesMessageBuilder(self.group, rules=[origin]).build()["blocks"]
 
         assert orjson.loads(blocks[0]["block_id"]) == {
             "issue": self.group.id,

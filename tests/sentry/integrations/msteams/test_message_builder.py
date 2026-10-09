@@ -424,18 +424,22 @@ class MSTeamsMessageBuilderTest(TestCase):
         assert card_json[0] == "{" and card_json[-1] == "}"
 
     def test_issue_action_payload_includes_rule_and_workflow_ids(self) -> None:
-        self.rules[0].data["actions"][0].update(
-            {"legacy_rule_id": self.rules[0].id, "workflow_id": 123}
+        origin = self.origins[0]
+        rule = NotificationOrigin(
+            label=origin.label,
+            environment_id=origin.environment_id,
+            legacy_rule_id=origin.legacy_rule_id,
+            workflow_id=123,
         )
 
         payload = MSTeamsIssueMessageBuilder(
             group=self.group1,
             event=self.event1,
-            rules=[NotificationOrigin.from_legacy_rule(self.rules[0])],
+            rules=[rule],
             integration=self.integration,
         ).generate_action_payload(ACTION_TYPE.RESOLVE)["payload"]
 
-        assert payload["rules"] == [self.rules[0].id]
+        assert payload["rules"] == [origin.legacy_rule_id]
         assert payload["workflows"] == [123]
 
     def test_issue_description_uses_event(self) -> None:
