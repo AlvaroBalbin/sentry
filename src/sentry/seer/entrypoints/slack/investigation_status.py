@@ -73,7 +73,8 @@ def get_status_subtitle(source: Mapping[str, Any]) -> str | None:
     parts = []
     query = _as_dict(snapshot.get("monitor")).get("query")
     if isinstance(query, str) and query:
-        parts.append(f"`{_truncate(query)}`")
+        # A backtick in the query ends the code span too early.
+        parts.append(f"`{_truncate(query.replace('`', "'"))}`")
     window = _as_dict(snapshot.get("analysisWindow"))
     start = _parse_time(window.get("breachStart"))
     end = _parse_time(window.get("end"))
@@ -87,7 +88,9 @@ def _get_detail(hypothesis: Mapping[str, Any]) -> str:
     if verdict:
         return _truncate(str(verdict.get("rationale") or ""))
 
-    steps = [step for step in hypothesis.get("verificationSteps") or [] if isinstance(step, dict)]
+    steps = [
+        step for step in hypothesis.get("verificationSteps") or [] if isinstance(step, Mapping)
+    ]
     steps.sort(key=lambda step: step.get("order", 0))
     for status in ("running", "queued"):
         for step in steps:
@@ -105,7 +108,7 @@ def build_investigation_status(
     raw_hypotheses = [
         hypothesis
         for hypothesis in _as_dict(projection).get("hypotheses") or []
-        if isinstance(hypothesis, dict)
+        if isinstance(hypothesis, Mapping)
     ]
     raw_hypotheses.sort(key=lambda hypothesis: hypothesis.get("order", 0))
     raw_hypotheses = raw_hypotheses[:MAX_STATUS_HYPOTHESES]
@@ -114,16 +117,13 @@ def build_investigation_status(
     fingerprint_hypotheses = []
     for hypothesis in raw_hypotheses:
         label = HYPOTHESIS_LABELS.get(hypothesis.get("effectiveStatus", ""), VERIFYING_LABEL)
+        statement = _truncate(str(hypothesis.get("statement") or ""))
         detail = _get_detail(hypothesis)
         hypotheses.append(
-            SeerInvestigationHypothesis(
-                statement=_truncate(str(hypothesis.get("statement") or "")),
-                label=label,
-                detail=detail,
-            )
+            SeerInvestigationHypothesis(statement=statement, label=label, detail=detail)
         )
         fingerprint_hypotheses.append(
-            [hypothesis.get("id"), hypothesis.get("generation"), label, detail]
+            [hypothesis.get("id"), hypothesis.get("generation"), statement, label, detail]
         )
 
     data = SeerInvestigationStatus(

@@ -479,8 +479,10 @@ class SeerSlackRendererInvestigationTest(TestCase):
 
         assert renderable["text"] == "Investigating Checkout <errors>"
         (block,) = renderable["blocks"]
-        assert isinstance(block, MarkdownBlock)
-        assert block.text == "*Investigating Checkout &lt;errors&gt;*"
+        assert isinstance(block, SectionBlock)
+        assert block.text is not None
+        assert block.text.type == "mrkdwn"
+        assert block.text.text == "*Investigating Checkout &lt;errors&gt;*"
 
     def test_render_investigation_status_with_hypotheses(self) -> None:
         template = SeerInvestigationStatusTemplate()

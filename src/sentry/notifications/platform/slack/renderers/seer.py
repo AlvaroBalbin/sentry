@@ -295,7 +295,9 @@ class SeerSlackRenderer(NotificationRenderer[SlackRenderable]):
         text = f"Investigating {data.title}"
         header = f"*{escape_slack_text(text)}*"
         if not data.hypotheses:
-            return SlackRenderable(blocks=[MarkdownBlock(text=header)], text=text)
+            return SlackRenderable(
+                blocks=[SectionBlock(text=MarkdownTextObject(text=header))], text=text
+            )
 
         if data.subtitle:
             header += f"\n{escape_slack_text(data.subtitle)}"

@@ -7,6 +7,7 @@ from slack_sdk.web import SlackResponse
 
 from fixtures.seer.webhooks import MOCK_RUN_ID, MOCK_SEER_WEBHOOKS
 from sentry.integrations.slack.message_builder.types import SlackAction
+from sentry.investigations.models import InvestigationOrchestrationRun
 from sentry.investigations.models.orchestration import InvestigationOrchestrationStatus
 from sentry.notifications.platform.service import serialize_notification_data
 from sentry.notifications.platform.slack.provider import SlackRenderable
@@ -48,6 +49,7 @@ from sentry.sentry_apps.event_types import SentryAppEventType
 from sentry.shared_integrations.exceptions import IntegrationError
 from sentry.testutils.asserts import assert_halt_metric
 from sentry.testutils.cases import TestCase
+from sentry.utils.locking import UnableToAcquireLock
 
 
 class SlackAutofixEntrypointTest(TestCase):
@@ -1048,8 +1050,12 @@ class SlackInvestigationEntrypointTest(TestCase):
             entrypoint_key="slack", investigation_id=self.investigation.id
         )
 
+    def _save_source(self) -> None:
+        self.investigation.save(update_fields=["source"])
+
     def _update(self, hypotheses: list[dict[str, Any]]) -> None:
         self.orchestration_run.projection = {"hypotheses": hypotheses}
+        self.orchestration_run.save(update_fields=["projection"])
         cache_payload = self._get_cache()
         assert cache_payload is not None
         SlackInvestigationEntrypoint.on_investigation_update(
@@ -1072,7 +1078,13 @@ class SlackInvestigationEntrypointTest(TestCase):
         assert status_call.kwargs["thread_ts"] == self.message_ts
         assert status_call.kwargs["text"] == "Investigating FCP on organization login pages"
         assert [block.to_dict() for block in status_call.kwargs["blocks"]] == [
-            {"type": "markdown", "text": "*Investigating FCP on organization login pages*"}
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Investigating FCP on organization login pages*",
+                },
+            }
         ]
         cache_payload = entrypoint.create_investigation_cache_payload()
         assert cache_payload["status_message_ts"] == self.status_ts
@@ -1164,6 +1176,8 @@ class SlackInvestigationEntrypointTest(TestCase):
     def test_verdict_changes_label_and_detail(self) -> None:
         self._set_cache()
         rationale = "x" * 400
+        self._update([_hypothesis()])
+        self.mock_update.reset_mock()
 
         self._update(
             [
@@ -1221,6 +1235,7 @@ class SlackInvestigationEntrypointTest(TestCase):
     def _assert_run_status_makes_no_slack_call(self, status: str) -> None:
         cache_payload = self._set_cache()
         self.orchestration_run.status = status
+        self.orchestration_run.save(update_fields=["status"])
 
         self._update([_hypothesis()])
 
@@ -1240,11 +1255,18 @@ class SlackInvestigationEntrypointTest(TestCase):
         self._update([])
 
         assert [block.to_dict() for block in self.mock_update.call_args.kwargs["blocks"]] == [
-            {"type": "markdown", "text": "*Investigating FCP on organization login pages*"}
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Investigating FCP on organization login pages*",
+                },
+            }
         ]
 
     def test_title_falls_back_to_group_title(self) -> None:
         self.investigation.source["snapshot"]["monitor"].pop("name")
+        self._save_source()
         self._set_cache()
 
         self._update([_hypothesis()])
@@ -1258,6 +1280,7 @@ class SlackInvestigationEntrypointTest(TestCase):
             "breachStart": "2024-08-27T23:00:00+00:00",
             "end": "2024-08-28T01:00:00+00:00",
         }
+        self._save_source()
         self._set_cache()
 
         self._update([_hypothesis()])
@@ -1291,3 +1314,94 @@ class SlackInvestigationEntrypointTest(TestCase):
 
         assert self._get_cache() == cache_payload
         assert_halt_metric(mock_record, IntegrationError())
+
+    def test_generation_bump_resets_label_and_detail(self) -> None:
+        self._set_cache()
+        self._update(
+            [
+                _hypothesis(
+                    effectiveStatus="supported",
+                    agentVerdict={"verdict": "supported", "confidence": 0.9, "rationale": "Yes"},
+                )
+            ]
+        )
+        self.mock_update.reset_mock()
+
+        self._update([_hypothesis(generation=2, effectiveStatus="investigating")])
+
+        (quote,) = self._quotes(self.mock_update.call_args.kwargs["blocks"])
+        assert quote[1]["text"] == "\n● Verifying"
+        assert quote[2]["text"] == "\nCompare cache behavior"
+
+    @patch("sentry.integrations.utils.metrics.EventLifecycle.record_event")
+    def test_lock_failure_makes_no_slack_call(self, mock_record: Mock) -> None:
+        self._set_cache()
+        lock = Mock()
+        lock.blocking_acquire.side_effect = UnableToAcquireLock("locked")
+
+        with patch("sentry.seer.entrypoints.slack.entrypoint.locks.get", return_value=lock):
+            self._update([_hypothesis()])
+
+        self.mock_update.assert_not_called()
+        self.mock_post_message.assert_not_called()
+        assert_halt_metric(mock_record, UnableToAcquireLock())
+
+    def test_stale_cache_payload_argument_is_ignored(self) -> None:
+        stale_payload = self._set_cache()
+        self._update([_hypothesis()])
+        self.mock_update.reset_mock()
+
+        SlackInvestigationEntrypoint.on_investigation_update(
+            cache_payload=stale_payload, run=self.orchestration_run
+        )
+
+        self.mock_update.assert_not_called()
+        self.mock_post_message.assert_not_called()
+
+    def test_stale_run_argument_uses_latest_run(self) -> None:
+        self._set_cache()
+        stale_run = InvestigationOrchestrationRun.objects.get(id=self.orchestration_run.id)
+        self.orchestration_run.projection = {"hypotheses": [_hypothesis(statement="Latest")]}
+        self.orchestration_run.save(update_fields=["projection"])
+        cache_payload = self._get_cache()
+        assert cache_payload is not None
+
+        SlackInvestigationEntrypoint.on_investigation_update(
+            cache_payload=cache_payload, run=stale_run
+        )
+
+        (quote,) = self._quotes(self.mock_update.call_args.kwargs["blocks"])
+        assert quote[0]["text"] == "1. Latest"
+
+    def test_title_falls_back_to_this_alert(self) -> None:
+        self.investigation.source["snapshot"]["monitor"].pop("name")
+        self.investigation.source["snapshot"].pop("groupTitle")
+        self._save_source()
+        self._set_cache()
+
+        self._update([])
+
+        assert self.mock_update.call_args.kwargs["text"] == "Investigating this alert"
+
+    def test_header_escapes_title_and_query(self) -> None:
+        snapshot = self.investigation.source["snapshot"]
+        snapshot["monitor"]["name"] = "p95 > 2s & <rising>"
+        snapshot["monitor"]["query"] = "transaction:`/a&b`"
+        self._save_source()
+        self._set_cache()
+
+        self._update([_hypothesis()])
+
+        (header, *_rest) = self.mock_update.call_args.kwargs["blocks"]
+        assert header.text.text == (
+            "*Investigating p95 &gt; 2s &amp; &lt;rising&gt;*\n"
+            "`transaction:'/a&amp;b'` · Aug 27, 09:00–11:00 UTC"
+        )
+
+    def test_hypotheses_are_capped(self) -> None:
+        self._set_cache()
+
+        self._update([_hypothesis(id=f"h{order}", order=order) for order in range(12)])
+
+        quotes = self._quotes(self.mock_update.call_args.kwargs["blocks"])
+        assert len(quotes) == 10
