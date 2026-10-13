@@ -3,10 +3,12 @@ from __future__ import annotations
 import orjson
 
 from sentry.incidents.models.incident import IncidentStatus
+from sentry.models.group import Group
 from sentry.notifications.platform.registry import renderer_registry
 from sentry.notifications.platform.renderer import NotificationRenderer
 from sentry.notifications.platform.slack.provider import SlackRenderable
 from sentry.notifications.platform.templates.metric_alert import MetricAlertNotificationData
+from sentry.notifications.platform.tracking import NotificationLinkDecorator
 from sentry.notifications.platform.types import (
     NotificationData,
     NotificationProviderKey,
@@ -22,7 +24,11 @@ from sentry.notifications.utils.actions import MessageAction
 class SlackMetricAlertRenderer(NotificationRenderer[SlackRenderable]):
     @classmethod
     def render[DataT: NotificationData](
-        cls, *, data: DataT, rendered_template: NotificationRenderedTemplate
+        cls,
+        *,
+        data: DataT,
+        rendered_template: NotificationRenderedTemplate,
+        link_decorator: NotificationLinkDecorator,
     ) -> SlackRenderable:
         if not isinstance(data, MetricAlertNotificationData):
             raise ValueError(f"SlackMetricAlertRenderer does not support {data.__class__.__name__}")
@@ -47,14 +53,15 @@ class SlackMetricAlertRenderer(NotificationRenderer[SlackRenderable]):
                 BlockSlackMessageBuilder.get_image_block(data.chart_url, alt="Metric Alert Chart")
             )
 
-        if data.show_investigation_button and data.project_id is not None:
-            button = BlockSlackMessageBuilder.get_button_action(
-                cls._get_investigation_action(data, data.project_id)
-            )
+        if data.show_investigation_button and (
+            investigation_action := cls._get_investigation_action(data)
+        ):
+            button = BlockSlackMessageBuilder.get_button_action(investigation_action)
             blocks.append({"type": "actions", "elements": [button]})
 
         color = LEVEL_TO_COLOR.get(INCIDENT_COLOR_MAPPING.get(status, ""))
-        fallback_text = f"<{data.title_link}|*{escape_slack_text(data.title)}*>"
+        title_link = link_decorator.decorate_url(data.title_link)
+        fallback_text = f"<{title_link}|*{escape_slack_text(data.title)}*>"
         slack_body = BlockSlackMessageBuilder._build_blocks(
             *blocks, fallback_text=fallback_text, color=color
         )
@@ -73,11 +80,14 @@ class SlackMetricAlertRenderer(NotificationRenderer[SlackRenderable]):
         return renderable
 
     @staticmethod
-    def _get_investigation_action(
-        data: MetricAlertNotificationData, project_id: int
-    ) -> MessageAction:
+    def _get_investigation_action(data: MetricAlertNotificationData) -> MessageAction | None:
         from sentry.integrations.slack.message_builder.routing import encode_action_id
         from sentry.integrations.slack.message_builder.types import SlackAction
+
+        try:
+            group = Group.objects.get_from_cache(id=data.group_id)
+        except Group.DoesNotExist:
+            return None
 
         return MessageAction(
             name="investigate_with_seer",
@@ -88,6 +98,6 @@ class SlackMetricAlertRenderer(NotificationRenderer[SlackRenderable]):
             action_id=encode_action_id(
                 action=SlackAction.SEER_INVESTIGATION_START,
                 organization_id=data.organization_id,
-                project_id=project_id,
+                project_id=group.project_id,
             ),
         )
