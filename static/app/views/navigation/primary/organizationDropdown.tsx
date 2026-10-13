@@ -1,14 +1,20 @@
 import {useEffect, useRef} from 'react';
-import {useTheme} from '@emotion/react';
+import {css, useTheme} from '@emotion/react';
 import {IconAdd} from '@sentry/icons/add';
+import {IconBuilding} from '@sentry/icons/building';
+import {IconSettings} from '@sentry/icons/settings';
 import orderBy from 'lodash/orderBy';
 import partition from 'lodash/partition';
 
 import {OrganizationAvatar} from '@sentry/scraps/avatar';
 import {AvatarButton} from '@sentry/scraps/avatarButton';
-import {DropdownMenu, type MenuItemProps} from '@sentry/scraps/dropdownMenu';
+import {
+  DropdownMenu,
+  type DropdownMenuProps,
+  type MenuItemProps,
+} from '@sentry/scraps/dropdownMenu';
 import {InfoTip} from '@sentry/scraps/info';
-import {Flex, Stack} from '@sentry/scraps/layout';
+import {Container, Flex, Stack} from '@sentry/scraps/layout';
 import {useSizeContext} from '@sentry/scraps/sizeContext';
 import {Text} from '@sentry/scraps/text';
 
@@ -21,11 +27,13 @@ import {useLegacyStore} from 'sentry/stores/useLegacyStore';
 import type {OrganizationSummary} from 'sentry/types/organization';
 import {isDemoModeActive} from 'sentry/utils/demoMode';
 import {localizeDomain, resolveRoute} from 'sentry/utils/resolveRoute';
+import {darkTheme} from 'sentry/utils/theme/theme';
 import {useNavigate} from 'sentry/utils/useNavigate';
 import {useOrganization} from 'sentry/utils/useOrganization';
 import {useProjects} from 'sentry/utils/useProjects';
 import {useSessionStorage} from 'sentry/utils/useSessionStorage';
 import {makeProjectsPathname} from 'sentry/views/projects/pathname';
+import {useSettingsV3} from 'sentry/views/settings/useSettingsV3';
 
 interface OrganizationDropdownProps {
   /**
@@ -45,6 +53,7 @@ export function OrganizationDropdown(props: OrganizationDropdownProps) {
   }, []);
 
   const organization = useOrganization();
+  const settingsV3 = useSettingsV3();
   const {organizations} = useLegacyStore(OrganizationsStore);
 
   const [activeOrgs, inactiveOrgs] = partition(
@@ -62,37 +71,153 @@ export function OrganizationDropdown(props: OrganizationDropdownProps) {
 
   const size = useSizeContext();
 
+  const trigger: DropdownMenuProps['trigger'] = triggerProps => (
+    <AvatarButton
+      avatar={
+        organization.avatar.avatarType === 'upload' && organization.avatar.avatarUrl
+          ? {
+              type: 'upload',
+              uploadUrl: organization.avatar.avatarUrl,
+              ...letterAvatarProps,
+            }
+          : organization.avatar.avatarType === 'gravatar' && organization.avatar.avatarUrl
+            ? {
+                type: 'gravatar',
+                gravatarId: organization.avatar.avatarUrl,
+                ...letterAvatarProps,
+              }
+            : {type: 'letter_avatar', ...letterAvatarProps}
+      }
+      size={size}
+      aria-label={t('Toggle organization menu')}
+      {...triggerProps}
+    />
+  );
+
+  const menuItems: MenuItemProps[] = [
+    ...(props.hideCurrentOrganizationLinks
+      ? []
+      : [
+          {
+            key: 'organization-settings',
+            label: t('Organization Settings'),
+            to: `/settings/${organization.slug}/`,
+            hidden: !organization.access?.includes('org:read'),
+          },
+          {
+            key: 'projects',
+            label: t('Projects'),
+            onAction: () => {
+              setReferrer('org-dropdown');
+              navigate(makeProjectsPathname({path: '/', organization}));
+            },
+          },
+          {
+            key: 'members',
+            label: t('Members'),
+            to: `/settings/${organization.slug}/members/`,
+            hidden: !organization.access?.includes('member:read'),
+          },
+          {
+            key: 'teams',
+            label: t('Teams'),
+            to: `/settings/${organization.slug}/teams/`,
+            hidden: !organization.access?.includes('team:read'),
+          },
+          {
+            key: 'billing',
+            label: t('Usage & Billing'),
+            to: `/settings/${organization.slug}/billing/`,
+            hidden: !organization.access?.includes('org:billing'),
+          },
+        ]),
+    {
+      key: 'switch-organization',
+      label: t('Switch Organization'),
+      submenu: true,
+      hidden: config.singleOrganization || isDemoModeActive(),
+      children: [
+        {
+          key: 'active-orgs',
+          children: orderBy(activeOrgs, ['name']).map(makeOrganizationMenuItem),
+          // Hide entire submenu if there are no active organizations
+          hidden: activeOrgs.length === 0,
+        },
+        {
+          key: 'inactive-ogs',
+          children: orderBy(inactiveOrgs, ['name']).map(makeInactiveOrganizationMenuItem),
+          // Hide entire submenu if there are no inactive organizations
+          hidden: inactiveOrgs.length === 0,
+        },
+        makeCreateOrganizationMenuItem(),
+      ],
+    },
+  ];
+
+  if (settingsV3) {
+    return (
+      <DropdownMenu
+        usePortal
+        portalContainerRef={portalContainerRef}
+        zIndex={theme.zIndex.modal}
+        trigger={trigger}
+        offset={Number.parseFloat(theme.space.md)}
+        minMenuWidth={258}
+        menuTitle={
+          <OrganizationMenuHeader
+            organization={organization}
+            projectCount={projects.length}
+          />
+        }
+        items={[
+          {
+            key: 'organization',
+            textValue: organization.name,
+            children: [
+              {
+                key: 'settings',
+                label: t('Settings'),
+                leadingItems: <IconSettings />,
+                to: `/settings/${organization.slug}/`,
+                hidden:
+                  props.hideCurrentOrganizationLinks ||
+                  !organization.access?.includes('org:read'),
+              },
+              {
+                key: 'switch-organization-v3',
+                label: t('Switch'),
+                leadingItems: <IconBuilding />,
+                submenu: true,
+                hidden: config.singleOrganization || isDemoModeActive(),
+                children: [
+                  {
+                    key: 'active-orgs-v3',
+                    children: orderBy(activeOrgs, ['name']).map(makeOrganizationMenuItem),
+                    hidden: activeOrgs.length === 0,
+                  },
+                  {
+                    key: 'inactive-orgs-v3',
+                    children: orderBy(inactiveOrgs, ['name']).map(
+                      makeInactiveOrganizationMenuItem
+                    ),
+                    hidden: inactiveOrgs.length === 0,
+                  },
+                ],
+              },
+              makeCreateOrganizationMenuItem(false),
+            ],
+          },
+        ]}
+      />
+    );
+  }
+
   return (
     <DropdownMenu
       usePortal
       portalContainerRef={portalContainerRef}
       zIndex={theme.zIndex.modal}
-      trigger={triggerProps => (
-        <AvatarButton
-          avatar={
-            organization.avatar.avatarType === 'upload' && organization.avatar.avatarUrl
-              ? {
-                  type: 'upload',
-                  uploadUrl: organization.avatar.avatarUrl,
-                  ...letterAvatarProps,
-                }
-              : organization.avatar.avatarType === 'gravatar' &&
-                  organization.avatar.avatarUrl
-                ? {
-                    type: 'gravatar',
-                    gravatarId: organization.avatar.avatarUrl,
-                    ...letterAvatarProps,
-                  }
-                : {
-                    type: 'letter_avatar',
-                    ...letterAvatarProps,
-                  }
-          }
-          size={size}
-          aria-label={t('Toggle organization menu')}
-          {...triggerProps}
-        />
-      )}
+      trigger={trigger}
       position="right-start"
       minMenuWidth={200}
       items={[
@@ -112,70 +237,72 @@ export function OrganizationDropdown(props: OrganizationDropdownProps) {
               </Stack>
             </Flex>
           ),
-          children: [
-            ...(props.hideCurrentOrganizationLinks
-              ? []
-              : [
-                  {
-                    key: 'organization-settings',
-                    label: t('Organization Settings'),
-                    to: `/settings/${organization.slug}/`,
-                    hidden: !organization.access?.includes('org:read'),
-                  },
-                  {
-                    key: 'projects',
-                    label: t('Projects'),
-                    onAction: () => {
-                      setReferrer('org-dropdown');
-                      navigate(makeProjectsPathname({path: '/', organization}));
-                    },
-                  },
-                  {
-                    key: 'members',
-                    label: t('Members'),
-                    to: `/settings/${organization.slug}/members/`,
-                    hidden: !organization.access?.includes('member:read'),
-                  },
-                  {
-                    key: 'teams',
-                    label: t('Teams'),
-                    to: `/settings/${organization.slug}/teams/`,
-                    hidden: !organization.access?.includes('team:read'),
-                  },
-                  {
-                    key: 'billing',
-                    label: t('Usage & Billing'),
-                    to: `/settings/${organization.slug}/billing/`,
-                    hidden: !organization.access?.includes('org:billing'),
-                  },
-                ]),
-            {
-              key: 'switch-organization',
-              label: t('Switch Organization'),
-              submenu: true,
-              hidden: config.singleOrganization || isDemoModeActive(),
-              children: [
-                {
-                  key: 'active-orgs',
-                  children: orderBy(activeOrgs, ['name']).map(makeOrganizationMenuItem),
-                  // Hide entire submenu if there are no active organizations
-                  hidden: activeOrgs.length === 0,
-                },
-                {
-                  key: 'inactive-ogs',
-                  children: orderBy(inactiveOrgs, ['name']).map(
-                    makeInactiveOrganizationMenuItem
-                  ),
-                  // Hide entire submenu if there are no inactive organizations
-                  hidden: inactiveOrgs.length === 0,
-                },
-                makeCreateOrganizationMenuItem(),
-              ],
-            },
-          ],
+          children: menuItems,
         },
       ]}
     />
+  );
+}
+
+function OrganizationMenuHeader({
+  organization,
+  projectCount,
+}: {
+  organization: OrganizationSummary;
+  projectCount: number;
+}) {
+  return (
+    <Container
+      radius="md md 0 0"
+      padding="xs"
+      css={theme => css`
+        margin: -${theme.space.sm} -${theme.space.lg};
+        background: linear-gradient(110deg, #2c155c, #4e168c);
+        color: ${theme.tokens.content.onVibrant.light};
+      `}
+    >
+      <Stack gap="md" padding="md lg">
+        <Text size="sm" density="fixed" bold tabular variant="inherit">
+          {t('Organization')}
+        </Text>
+        <Flex align="center" gap="md">
+          <Flex
+            align="center"
+            justify="center"
+            width="32px"
+            height="32px"
+            padding="2xs"
+            gap="md"
+            radius="md"
+            overflow="hidden"
+            css={theme => css`
+              border: 1px solid ${theme.tokens.border.transparent.neutral.muted};
+              background: ${theme.tokens.background.primary};
+            `}
+          >
+            <OrganizationAvatar organization={organization} size={26} />
+          </Flex>
+          <Stack gap="0">
+            <Text size="md" density="comfortable" bold variant="inherit">
+              {organization.name || organization.slug}
+            </Text>
+            <Text
+              size="sm"
+              density="comfortable"
+              variant="inherit"
+              bold={false}
+              tabular
+              css={css`
+                color: ${darkTheme.tokens.content.secondary};
+                font-variant-numeric: lining-nums tabular-nums;
+              `}
+            >
+              {tn('%s Project', '%s Projects', projectCount)}
+            </Text>
+          </Stack>
+        </Flex>
+      </Stack>
+    </Container>
   );
 }
 
@@ -195,13 +322,14 @@ function makeInactiveOrganizationMenuItem(org: OrganizationSummary): MenuItemPro
   };
 }
 
-function makeCreateOrganizationMenuItem(): MenuItemProps {
+function makeCreateOrganizationMenuItem(asSection = true): MenuItemProps {
   const configFeatures = ConfigStore.get('features');
 
   const menuItemProps: MenuItemProps = {
     key: 'create-organization',
     leadingItems: <IconAdd />,
-    label: t('Create a new organization'),
+    label: asSection ? t('Create a new organization') : t('Create Organization'),
+    hidden: !configFeatures.has('organizations:create'),
   };
 
   if (configFeatures.has('system:multi-region')) {
@@ -211,9 +339,13 @@ function makeCreateOrganizationMenuItem(): MenuItemProps {
     menuItemProps.to = '/organizations/new/';
   }
 
+  if (!asSection) {
+    return menuItemProps;
+  }
+
   return {
     key: 'create-organization-section',
     children: [menuItemProps],
-    hidden: !ConfigStore.get('features').has('organizations:create'),
+    hidden: menuItemProps.hidden,
   };
 }

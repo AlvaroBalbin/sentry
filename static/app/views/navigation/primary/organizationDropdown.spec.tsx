@@ -39,6 +39,34 @@ describe('OrganizationDropdown', () => {
     );
   });
 
+  it('displays the settings v3 organization header', async () => {
+    ConfigStore.get('features').add('organizations:create');
+    render(<OrganizationDropdown />, {
+      organization: OrganizationFixture({
+        ...organization,
+        features: [...organization.features, 'settings-v3'],
+      }),
+    });
+
+    await userEvent.click(screen.getByRole('button', {name: 'Toggle organization menu'}));
+
+    expect(screen.getByText('Organization')).toBeInTheDocument();
+    expect(screen.getByText(organization.name)).toBeInTheDocument();
+    expect(screen.getByText('0 Projects')).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', {name: 'Settings'})).toHaveAttribute(
+      'href',
+      `/settings/${organization.slug}/`
+    );
+    expect(screen.getByRole('menuitemradio', {name: 'Switch'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemradio', {name: 'Create Organization'})
+    ).toHaveAttribute('href', '/organizations/new/');
+    expect(
+      screen.queryByRole('menuitemradio', {name: 'Projects'})
+    ).not.toBeInTheDocument();
+    ConfigStore.get('features').delete('organizations:create');
+  });
+
   it('can switch orgs', async () => {
     OrganizationsStore.addOrReplace(
       OrganizationFixture({id: '1', name: 'Org 1', slug: 'org-1'})

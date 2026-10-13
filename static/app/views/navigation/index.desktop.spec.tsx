@@ -306,6 +306,30 @@ describe('desktop navigation', () => {
       expect(linkNames).not.toContain('Insights');
     });
 
+    it('hides the Settings nav item when settings-v3 is enabled', async () => {
+      render(
+        <PrimaryNavigationContextProvider>
+          <Navigation />
+        </PrimaryNavigationContextProvider>,
+        navigationContext({
+          organization: {features: [...ALL_AVAILABLE_FEATURES, 'settings-v3']},
+        })
+      );
+
+      const primaryNav = screen.getByRole('navigation', {name: 'Primary Navigation'});
+      expect(
+        within(primaryNav).queryByRole('link', {name: 'Settings'})
+      ).not.toBeInTheDocument();
+
+      await userEvent.click(
+        screen.getByRole('button', {name: 'Toggle organization menu'})
+      );
+      expect(screen.getByRole('menuitemradio', {name: 'Settings'})).toHaveAttribute(
+        'href',
+        '/settings/org-slug/'
+      );
+    });
+
     it('primary navigation marks exactly one link as active for the current route', () => {
       render(
         <PrimaryNavigationContextProvider>
