@@ -5,6 +5,7 @@ from slack_sdk.models.blocks import (
     ActionsBlock,
     ButtonElement,
     ContextBlock,
+    DividerBlock,
     LinkButtonElement,
     MarkdownBlock,
     MarkdownTextObject,
@@ -32,6 +33,8 @@ from sentry.notifications.platform.templates.seer import (
     SeerInvestigationErrorTemplate,
     SeerInvestigationStarted,
     SeerInvestigationStartedTemplate,
+    SeerInvestigationStatus,
+    SeerInvestigationStatusTemplate,
 )
 from sentry.notifications.platform.types import NotificationRenderedTemplate
 from sentry.seer.autofix.utils import AutofixStoppingPoint
@@ -461,3 +464,64 @@ class SeerSlackRendererInvestigationTest(TestCase):
         (block,) = renderable["blocks"]
         assert isinstance(block, MarkdownBlock)
         assert block.text == text
+
+    def test_render_investigation_status_title_only(self) -> None:
+        renderable = NotificationService.render_template(
+            data=SeerInvestigationStatus(
+                organization_id=1,
+                title="Checkout <errors>",
+                subtitle="`transaction:/checkout/`",
+                investigation_url="https://example.com/investigation",
+            ),
+            template=SeerInvestigationStatusTemplate(),
+            provider=SlackNotificationProvider,
+        )
+
+        assert renderable["text"] == "Investigating Checkout <errors>"
+        (block,) = renderable["blocks"]
+        assert isinstance(block, MarkdownBlock)
+        assert block.text == "*Investigating Checkout &lt;errors&gt;*"
+
+    def test_render_investigation_status_with_hypotheses(self) -> None:
+        template = SeerInvestigationStatusTemplate()
+        data = template.example_data
+
+        renderable = NotificationService.render_template(
+            data=data, template=template, provider=SlackNotificationProvider
+        )
+
+        assert renderable["text"] == "Investigating FCP on organization login pages"
+        header, *quotes, divider, actions = renderable["blocks"]
+        assert isinstance(header, SectionBlock)
+        assert header.text is not None
+        assert header.text.text == (
+            "*Investigating FCP on organization login pages*\n"
+            "`/auth/login/[org]/` · Aug 27, 09:00–11:00 UTC"
+        )
+        assert len(quotes) == len(data.hypotheses)
+        assert quotes[0].to_dict()["elements"] == [
+            {
+                "type": "rich_text_quote",
+                "elements": [
+                    {
+                        "type": "text",
+                        "text": "1. Database or cache degradation delayed the response",
+                        "style": {"bold": True},
+                    },
+                    {"type": "text", "text": "\n● Verifying", "style": {"bold": True}},
+                    {
+                        "type": "text",
+                        "text": "\nComparing server response time, organization lookup "
+                        "spans, and cache behavior…",
+                    },
+                ],
+            }
+        ]
+        assert isinstance(divider, DividerBlock)
+        assert isinstance(actions, ActionsBlock)
+        (button,) = actions.elements
+        assert isinstance(button, LinkButtonElement)
+        assert button.text is not None
+        assert button.text.text == "View full investigation"
+        assert button.url == data.investigation_url
+        assert button.style == "primary"

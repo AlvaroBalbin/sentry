@@ -9,6 +9,7 @@ from slack_sdk.models.blocks import (
     Block,
     ButtonElement,
     ContextBlock,
+    DividerBlock,
     InteractiveElement,
     LinkButtonElement,
     MarkdownBlock,
@@ -17,6 +18,7 @@ from slack_sdk.models.blocks import (
     RichTextBlock,
     RichTextElementParts,
     RichTextListElement,
+    RichTextQuoteElement,
     RichTextSectionElement,
     SectionBlock,
 )
@@ -32,6 +34,7 @@ from sentry.notifications.platform.templates.seer import (
     SeerAutofixUpdate,
     SeerInvestigationError,
     SeerInvestigationStarted,
+    SeerInvestigationStatus,
 )
 from sentry.notifications.platform.types import (
     NotificationData,
@@ -101,6 +104,7 @@ AUTOFIX_CONFIG: dict[AutofixStoppingPoint, AutofixStageConfig] = {
         NotificationSource.SEER_AGENT_ERROR,
         NotificationSource.SEER_INVESTIGATION_STARTED,
         NotificationSource.SEER_INVESTIGATION_ERROR,
+        NotificationSource.SEER_INVESTIGATION_STATUS,
     ],
 )
 class SeerSlackRenderer(NotificationRenderer[SlackRenderable]):
@@ -126,6 +130,8 @@ class SeerSlackRenderer(NotificationRenderer[SlackRenderable]):
             return cls._render_investigation_started(data)
         elif isinstance(data, SeerInvestigationError):
             return cls._render_investigation_error(data)
+        elif isinstance(data, SeerInvestigationStatus):
+            return cls._render_investigation_status(data)
         else:
             raise ValueError(f"SeerSlackRenderer does not support {data.__class__.__name__}")
 
@@ -281,6 +287,44 @@ class SeerSlackRenderer(NotificationRenderer[SlackRenderable]):
     def _render_investigation_error(cls, data: SeerInvestigationError) -> SlackRenderable:
         text = f"Seer couldn't start an investigation: {data.error_message}"
         return SlackRenderable(blocks=[MarkdownBlock(text=text)], text=text)
+
+    @classmethod
+    def _render_investigation_status(cls, data: SeerInvestigationStatus) -> SlackRenderable:
+        from sentry.integrations.slack.utils.escape import escape_slack_text
+
+        text = f"Investigating {data.title}"
+        header = f"*{escape_slack_text(text)}*"
+        if not data.hypotheses:
+            return SlackRenderable(blocks=[MarkdownBlock(text=header)], text=text)
+
+        if data.subtitle:
+            header += f"\n{escape_slack_text(data.subtitle)}"
+        bold = RichTextElementParts.TextStyle(bold=True)
+        blocks: list[Block] = [SectionBlock(text=MarkdownTextObject(text=header))]
+        for index, hypothesis in enumerate(data.hypotheses, start=1):
+            quote = RichTextQuoteElement(
+                elements=[
+                    RichTextElementParts.Text(
+                        text=f"{index}. {hypothesis['statement']}", style=bold
+                    ),
+                    RichTextElementParts.Text(text=f"\n{hypothesis['label']}", style=bold),
+                    RichTextElementParts.Text(text=f"\n{hypothesis['detail']}"),
+                ]
+            )
+            blocks.append(RichTextBlock(elements=[quote]))
+        blocks.append(DividerBlock())
+        blocks.append(
+            ActionsBlock(
+                elements=[
+                    LinkButtonElement(
+                        text="View full investigation",
+                        style="primary",
+                        url=data.investigation_url,
+                    )
+                ]
+            )
+        )
+        return SlackRenderable(blocks=blocks, text=text)
 
     @classmethod
     def _render_agent_response(cls, data: SeerAgentResponse) -> SlackRenderable:
