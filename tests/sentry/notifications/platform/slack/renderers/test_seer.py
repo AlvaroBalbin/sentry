@@ -491,7 +491,7 @@ class SeerAgentWriteApprovalSlackRendererTest(TestCase):
 
 class SeerSlackRendererInvestigationTest(TestCase):
     def test_render_investigation_started(self) -> None:
-        renderable = NotificationService.render_template(
+        renderable, _ = NotificationService.render_template(
             data=SeerInvestigationStarted(organization_id=1, slack_user_id="U0123456789"),
             template=SeerInvestigationStartedTemplate(),
             provider=SlackNotificationProvider,
@@ -504,7 +504,7 @@ class SeerSlackRendererInvestigationTest(TestCase):
         assert block.text == text
 
     def test_render_investigation_error(self) -> None:
-        renderable = NotificationService.render_template(
+        renderable, _ = NotificationService.render_template(
             data=SeerInvestigationError(organization_id=1, error_message="Something broke"),
             template=SeerInvestigationErrorTemplate(),
             provider=SlackNotificationProvider,

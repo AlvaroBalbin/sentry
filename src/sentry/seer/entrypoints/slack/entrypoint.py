@@ -781,7 +781,7 @@ class SlackInvestigationEntrypoint(
             organization_id=self.organization.id,
         ).capture() as lifecycle:
             lifecycle.add_extras({"channel_id": self.channel_id, "thread_ts": self.thread_ts})
-            renderable = NotificationService.render_template(
+            renderable, _ = NotificationService.render_template(
                 data=SeerInvestigationStarted(
                     organization_id=self.organization.id, slack_user_id=self.slack_user_id
                 ),
@@ -800,7 +800,7 @@ class SlackInvestigationEntrypoint(
     def on_trigger_investigation_error(self, *, error: str) -> None:
         from sentry.integrations.slack.workspace import send_threaded_ephemeral_message
 
-        renderable = NotificationService.render_template(
+        renderable, _ = NotificationService.render_template(
             data=SeerInvestigationError(organization_id=self.organization.id, error_message=error),
             template=SeerInvestigationErrorTemplate(),
             provider=provider_registry.get(NotificationProviderKey.SLACK),
