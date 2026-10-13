@@ -310,12 +310,12 @@ class SeerInvestigationStatusTemplate(NotificationTemplate[SeerInvestigationStat
             ),
             SeerInvestigationHypothesis(
                 statement="A frontend release added render-blocking assets",
-                label="Supported",
+                label="● Supported",
                 detail="The FCP increase lines up with the release that added a new font file.",
             ),
             SeerInvestigationHypothesis(
                 statement="A third-party script slowed the first paint",
-                label="Refuted",
+                label="● Refuted",
                 detail="Third-party script timings did not change during the breach window.",
             ),
         ],

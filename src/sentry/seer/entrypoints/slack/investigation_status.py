@@ -23,13 +23,13 @@ VERIFYING_LABEL = "● Verifying"
 HYPOTHESIS_LABELS = {
     "pending": VERIFYING_LABEL,
     "investigating": VERIFYING_LABEL,
-    "supported": "Supported",
-    "accepted": "Supported",
-    "refuted": "Refuted",
-    "rejected": "Refuted",
-    "inconclusive": "Inconclusive",
-    "failed": "Verification Failed",
-    "cancelled": "Cancelled",
+    "supported": "● Supported",
+    "accepted": "● Supported",
+    "refuted": "● Refuted",
+    "rejected": "● Refuted",
+    "inconclusive": "● Inconclusive",
+    "failed": "● Verification Failed",
+    "cancelled": "● Cancelled",
 }
 
 

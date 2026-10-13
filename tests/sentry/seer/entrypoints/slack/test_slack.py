@@ -1280,7 +1280,7 @@ class SlackInvestigationEntrypointTest(TestCase):
         )
 
         (quote,) = self._quotes(self.mock_update.call_args.kwargs["blocks"])
-        assert quote[1]["text"] == "\nSupported"
+        assert quote[1]["text"] == "\n● Supported"
         assert quote[2]["text"] == "\n" + "x" * 299 + "…"
 
     def test_user_disposition_and_terminal_statuses_map_to_labels(self) -> None:
@@ -1298,11 +1298,11 @@ class SlackInvestigationEntrypointTest(TestCase):
 
         quotes = self._quotes(self.mock_update.call_args.kwargs["blocks"])
         assert [quote[1]["text"] for quote in quotes] == [
-            "\nSupported",
-            "\nRefuted",
-            "\nVerification Failed",
-            "\nCancelled",
-            "\nInconclusive",
+            "\n● Supported",
+            "\n● Refuted",
+            "\n● Verification Failed",
+            "\n● Cancelled",
+            "\n● Inconclusive",
         ]
 
     def test_hypotheses_sorted_by_order_and_detail_falls_back_to_rationale(self) -> None:
