@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import ANY, Mock, patch
 
@@ -1123,9 +1124,15 @@ class SlackInvestigationEntrypointTest(TestCase):
     def _save_source(self) -> None:
         self.investigation.save(update_fields=["source"])
 
-    def _update(self, hypotheses: list[dict[str, Any]]) -> None:
+    def _update(
+        self,
+        hypotheses: list[dict[str, Any]],
+        updated_at: datetime = datetime(2024, 8, 27, 11, 0, tzinfo=UTC),
+    ) -> None:
         self.orchestration_run.projection = {"hypotheses": hypotheses}
-        self.orchestration_run.save(update_fields=["projection"])
+        InvestigationOrchestrationRun.objects.filter(id=self.orchestration_run.id).update(
+            projection=self.orchestration_run.projection, date_updated=updated_at
+        )
         cache_payload = self._get_cache()
         assert cache_payload is not None
         SlackInvestigationEntrypoint.on_investigation_update(
@@ -1243,6 +1250,16 @@ class SlackInvestigationEntrypointTest(TestCase):
         self.mock_update.assert_not_called()
         self.mock_post_message.assert_not_called()
 
+    def test_window_ends_at_latest_update(self) -> None:
+        self._set_cache()
+        self._update([_hypothesis()])
+        self.mock_update.reset_mock()
+
+        self._update([_hypothesis()], updated_at=datetime(2024, 8, 27, 11, 25, tzinfo=UTC))
+
+        (header, *_rest) = self.mock_update.call_args.kwargs["blocks"]
+        assert header.text.text.endswith("Aug 27, 09:00–11:25 UTC")
+
     def test_verdict_changes_label_and_detail(self) -> None:
         self._set_cache()
         rationale = "x" * 400
@@ -1346,14 +1363,11 @@ class SlackInvestigationEntrypointTest(TestCase):
     def test_subtitle_without_query_spans_days(self) -> None:
         snapshot = self.investigation.source["snapshot"]
         snapshot["monitor"]["query"] = ""
-        snapshot["analysisWindow"] = {
-            "breachStart": "2024-08-27T23:00:00+00:00",
-            "end": "2024-08-28T01:00:00+00:00",
-        }
+        snapshot["analysisWindow"]["breachStart"] = "2024-08-27T23:00:00+00:00"
         self._save_source()
         self._set_cache()
 
-        self._update([_hypothesis()])
+        self._update([_hypothesis()], updated_at=datetime(2024, 8, 28, 1, 0, tzinfo=UTC))
 
         (header, *_rest) = self.mock_update.call_args.kwargs["blocks"]
         assert header.text.text == (

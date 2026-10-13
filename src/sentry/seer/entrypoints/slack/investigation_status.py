@@ -68,7 +68,9 @@ def get_status_title(source: Mapping[str, Any]) -> str:
     return "this alert"
 
 
-def get_status_subtitle(source: Mapping[str, Any]) -> str | None:
+def get_status_subtitle(
+    source: Mapping[str, Any], updated_at: datetime | None = None
+) -> str | None:
     snapshot = _as_dict(source.get("snapshot"))
     parts = []
     query = _as_dict(snapshot.get("monitor")).get("query")
@@ -77,7 +79,7 @@ def get_status_subtitle(source: Mapping[str, Any]) -> str | None:
         parts.append(f"`{_truncate(query.replace('`', "'"))}`")
     window = _as_dict(snapshot.get("analysisWindow"))
     start = _parse_time(window.get("breachStart"))
-    end = _parse_time(window.get("end"))
+    end = updated_at.astimezone(UTC) if updated_at else _parse_time(window.get("end"))
     if start and end:
         parts.append(_format_window(start, end))
     return " · ".join(parts) or None
@@ -101,7 +103,10 @@ def _get_detail(hypothesis: Mapping[str, Any]) -> str:
 
 
 def build_investigation_status(
-    *, investigation: Investigation, projection: Mapping[str, Any] | None
+    *,
+    investigation: Investigation,
+    projection: Mapping[str, Any] | None,
+    updated_at: datetime | None = None,
 ) -> tuple[SeerInvestigationStatus, str]:
     """Builds the status message data and a fingerprint of what it shows."""
     source = _as_dict(investigation.source)
@@ -129,7 +134,7 @@ def build_investigation_status(
     data = SeerInvestigationStatus(
         organization_id=investigation.organization_id,
         title=get_status_title(source),
-        subtitle=get_status_subtitle(source),
+        subtitle=get_status_subtitle(source, updated_at),
         investigation_url=investigation.get_absolute_url(),
         hypotheses=hypotheses,
     )
