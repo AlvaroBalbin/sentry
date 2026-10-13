@@ -7,7 +7,10 @@ from typing import Any
 
 import orjson
 
+from sentry.api.event_search import SearchFilter, parse_search_query
+from sentry.exceptions import InvalidSearchQuery
 from sentry.investigations.models import Investigation
+from sentry.issues.issue_search import issue_search_config
 from sentry.notifications.platform.templates.seer import (
     SeerInvestigationHypothesis,
     SeerInvestigationStatus,
@@ -68,15 +71,32 @@ def get_status_title(source: Mapping[str, Any]) -> str:
     return "this alert"
 
 
+def _get_endpoint(query: str) -> str | None:
+    try:
+        tokens = parse_search_query(query, config=issue_search_config)
+    except InvalidSearchQuery:
+        return None
+    endpoints = [
+        token.value.raw_value
+        for token in tokens
+        if isinstance(token, SearchFilter)
+        and token.key.name == "transaction"
+        and token.operator == "="
+        and isinstance(token.value.raw_value, str)
+    ]
+    return endpoints[0] if len(endpoints) == 1 else None
+
+
 def get_status_subtitle(
     source: Mapping[str, Any], updated_at: datetime | None = None
 ) -> str | None:
     snapshot = _as_dict(source.get("snapshot"))
     parts = []
     query = _as_dict(snapshot.get("monitor")).get("query")
-    if isinstance(query, str) and query:
-        # A backtick in the query ends the code span too early.
-        parts.append(f"`{_truncate(query.replace('`', "'"))}`")
+    endpoint = _get_endpoint(query) if isinstance(query, str) and query else None
+    if endpoint:
+        # A backtick in the endpoint ends the code span too early.
+        parts.append(f"`{_truncate(endpoint.replace('`', "'"))}`")
     window = _as_dict(snapshot.get("analysisWindow"))
     start = _parse_time(window.get("breachStart"))
     end = updated_at.astimezone(UTC) if updated_at else _parse_time(window.get("end"))

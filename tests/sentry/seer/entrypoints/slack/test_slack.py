@@ -1198,7 +1198,7 @@ class SlackInvestigationEntrypointTest(TestCase):
                 "text": {
                     "type": "mrkdwn",
                     "text": "*Investigating FCP on organization login pages*\n"
-                    "`transaction:/auth/login/[org]/` · Aug 27, 09:00–11:00 UTC",
+                    "`/auth/login/[org]/` · Aug 27, 09:00–11:00 UTC",
                 },
             },
             {
@@ -1467,7 +1467,7 @@ class SlackInvestigationEntrypointTest(TestCase):
 
         assert self.mock_update.call_args.kwargs["text"] == "Investigating this alert"
 
-    def test_header_escapes_title_and_query(self) -> None:
+    def test_header_escapes_title_and_endpoint(self) -> None:
         snapshot = self.investigation.source["snapshot"]
         snapshot["monitor"]["name"] = "p95 > 2s & <rising>"
         snapshot["monitor"]["query"] = "transaction:`/a&b`"
@@ -1479,8 +1479,28 @@ class SlackInvestigationEntrypointTest(TestCase):
         (header, *_rest) = self.mock_update.call_args.kwargs["blocks"]
         assert header.text.text == (
             "*Investigating p95 &gt; 2s &amp; &lt;rising&gt;*\n"
-            "`transaction:'/a&amp;b'` · Aug 27, 09:00–11:00 UTC"
+            "`'/a&amp;b'` · Aug 27, 09:00–11:00 UTC"
         )
+
+    def test_subtitle_shows_only_a_single_transaction_filter(self) -> None:
+        cases = {
+            "is:unresolved": "Aug 27, 09:00–11:00 UTC",
+            'is:unresolved transaction:"/auth/login/"': "`/auth/login/` · Aug 27, 09:00–11:00 UTC",
+            "!transaction:/health/": "Aug 27, 09:00–11:00 UTC",
+            "transaction:/a/ transaction:/b/": "Aug 27, 09:00–11:00 UTC",
+            "transaction:/a/ OR transaction:/b/": "Aug 27, 09:00–11:00 UTC",
+        }
+        for query, subtitle in cases.items():
+            self.investigation.source["snapshot"]["monitor"]["query"] = query
+            self._save_source()
+            self._set_cache()
+
+            self._update([_hypothesis()])
+
+            (header, *_rest) = self.mock_update.call_args.kwargs["blocks"]
+            assert header.text.text == (
+                f"*Investigating FCP on organization login pages*\n{subtitle}"
+            ), query
 
     def test_hypotheses_are_capped(self) -> None:
         self._set_cache()

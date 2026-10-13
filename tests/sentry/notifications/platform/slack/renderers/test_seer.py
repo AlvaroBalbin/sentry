@@ -524,7 +524,7 @@ class SeerSlackRendererInvestigationTest(TestCase):
             data=SeerInvestigationStatus(
                 organization_id=1,
                 title="Checkout <errors>",
-                subtitle="`transaction:/checkout/`",
+                subtitle="`/checkout/`",
                 investigation_url="https://example.com/investigation",
             ),
             template=SeerInvestigationStatusTemplate(),
