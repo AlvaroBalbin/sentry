@@ -267,6 +267,7 @@ const config = defineConfig({
           'config/**/*.*',
           '*.config.{mjs,js,ts}',
           'oxlint.base.ts',
+          'stylelint.base.js',
         ],
       },
     ],
@@ -609,6 +610,7 @@ const config = defineConfig({
     {
       files: [
         'oxlint.base.ts',
+        'stylelint.base.js',
         '*.config.*',
         '**/__mocks__/*',
         'static/app/stories/*Loader.ts',

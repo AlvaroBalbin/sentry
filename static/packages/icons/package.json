@@ -182,10 +182,9 @@
   "scripts": {
     "test": "NODE_ENV=test jest --config jest.config.mjs",
     "typecheck": "tsc --build tsconfig.json",
-    "lint": "pnpm run lint:js && pnpm run lint:format && pnpm run lint:css",
+    "lint": "pnpm run lint:js && pnpm run lint:css",
     "lint:js": "oxlint --type-aware --report-unused-disable-directives .",
-    "lint:format": "oxfmt --check -c ../../../.oxfmtrc.json .",
-    "lint:css": "stylelint '**/*.[jt]sx' --config ../../../stylelint.config.js"
+    "lint:css": "stylelint '**/*.[jt]sx'"
   },
   "dependencies": {
     "@emotion/styled": "^11.14.0",
@@ -206,7 +205,6 @@
     "expect-type": "1.4.0",
     "jest": "30.5.1",
     "jsdom": "30.1.1",
-    "oxfmt": "^0.70.0",
     "oxlint": "1.85.0",
     "oxlint-tsgolint": "7.0.2001",
     "react-dom": "19.3.0",

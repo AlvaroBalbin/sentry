@@ -1175,9 +1175,6 @@ importers:
       jsdom:
         specifier: 30.1.1
         version: 30.1.1(@noble/hashes@1.8.0)
-      oxfmt:
-        specifier: ^0.70.0
-        version: 0.70.0
       oxlint:
         specifier: 1.85.0
         version: 1.85.0(oxlint-tsgolint@7.0.2001)
@@ -1260,9 +1257,6 @@ importers:
       jsdom:
         specifier: 30.1.1
         version: 30.1.1(@noble/hashes@1.8.0)
-      oxfmt:
-        specifier: ^0.70.0
-        version: 0.70.0
       oxlint:
         specifier: 1.85.0
         version: 1.85.0(oxlint-tsgolint@7.0.2001)
