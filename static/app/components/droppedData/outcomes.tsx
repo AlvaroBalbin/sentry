@@ -3,6 +3,7 @@ import type {Theme} from '@emotion/react';
 import {DATA_CATEGORY_INFO} from 'sentry/constants';
 import {t} from 'sentry/locale';
 import {Outcome} from 'sentry/types/core';
+import type {DiscoverDatasets} from 'sentry/utils/discover/types';
 import {formatPercentage} from 'sentry/utils/number/formatPercentage';
 
 const OUTCOME_LABELS: Partial<Record<Outcome, string>> = {
@@ -115,6 +116,24 @@ export function reasonDescription(reason: string, category: string): string | un
   return typeof description === 'function'
     ? description(dataTypeName(category))
     : description;
+}
+
+export function buildInvestigatePrompt(args: {
+  category: string;
+  dataset: DiscoverDatasets;
+  outcome: string;
+  reason: string;
+}): string {
+  const outcome = outcomeLabel(args.outcome);
+  const reason = reasonTitle(args.reason);
+  const detail = reasonDescription(args.reason, args.category);
+  return t(
+    'My %s data is being dropped as "%s" (%s).%s Why is this happening and how do I fix it?',
+    args.dataset,
+    outcome,
+    reason,
+    detail ? ` ${detail}` : ''
+  );
 }
 
 export function getOutcomeColors(

@@ -297,7 +297,9 @@ describe('DroppedDataCategoryList', () => {
     );
 
     await userEvent.click(screen.getByRole('menuitemradio', {name: 'Investigate'}));
-    expect(onInvestigate).toHaveBeenCalledTimes(1);
+    expect(onInvestigate).toHaveBeenCalledWith(
+      expect.objectContaining({outcome: 'rate_limited', reason: 'smart_rate_limit'})
+    );
   });
 
   it('hides investigate when there is no Seer hand-off', async () => {

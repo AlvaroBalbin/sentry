@@ -23,7 +23,7 @@ import {formatAbbreviatedNumber} from 'sentry/utils/formatters';
 import {normalizeUrl} from 'sentry/utils/url/normalizeUrl';
 import {useOrganization} from 'sentry/utils/useOrganization';
 
-interface ReasonRow {
+export interface ReasonRow {
   category: string;
   droppedBuckets: number;
   events: number;
@@ -169,7 +169,13 @@ function ReasonDescriptionLine({reason, category}: {category: string; reason: st
   );
 }
 
-function FixThisMenu({row, onInvestigate}: {row: ReasonRow; onInvestigate?: () => void}) {
+function FixThisMenu({
+  row,
+  onInvestigate,
+}: {
+  row: ReasonRow;
+  onInvestigate?: (row: ReasonRow) => void;
+}) {
   const organization = useOrganization();
   const {onClose: closeDroppedDataDrawer} = useDrawerContentContext();
 
@@ -189,11 +195,9 @@ function FixThisMenu({row, onInvestigate}: {row: ReasonRow; onInvestigate?: () =
           {
             key: 'investigate',
             label: t('Investigate'),
-            // TODO: A follow-up PR will seed Seer with per-reason context via
-            // `openChatPrompt`.
             onAction: () => {
               closeDroppedDataDrawer?.();
-              onInvestigate();
+              onInvestigate(row);
             },
           },
         ]
@@ -230,7 +234,7 @@ function ReasonExpansion({
 }: {
   isLast: boolean;
   row: ReasonRow;
-  onInvestigate?: () => void;
+  onInvestigate?: (row: ReasonRow) => void;
 }) {
   return (
     <Flex
@@ -257,7 +261,7 @@ function ReasonTableRow({
   isLast: boolean;
   row: ReasonRow;
   totalBuckets: number;
-  onInvestigate?: () => void;
+  onInvestigate?: (row: ReasonRow) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -312,7 +316,7 @@ function ReasonTable({
 }: {
   reasons: ReasonRow[];
   totalBuckets: number;
-  onInvestigate?: () => void;
+  onInvestigate?: (row: ReasonRow) => void;
 }) {
   return (
     <Stack radius="md" overflow="hidden" border="muted">
@@ -356,7 +360,7 @@ function CategorySectionRow({
   color: string;
   section: CategorySection;
   totalBuckets: number;
-  onInvestigate?: () => void;
+  onInvestigate?: (row: ReasonRow) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -399,7 +403,7 @@ function CategorySectionRow({
 interface DroppedDataCategoryListProps {
   acceptedEvents: DroppedEventsBucket[];
   droppedEvents: DroppedEventsBucket[];
-  onInvestigate?: () => void;
+  onInvestigate?: (row: ReasonRow) => void;
 }
 
 export function DroppedDataCategoryList({

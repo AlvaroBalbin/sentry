@@ -7,6 +7,7 @@ import {Text} from '@sentry/scraps/text';
 import {
   DroppedDataCategoryList,
   droppedEventsToCategorySections,
+  type ReasonRow,
 } from 'sentry/components/droppedData/drawer/categoryList';
 import {DroppedDataChart} from 'sentry/components/droppedData/drawer/droppedEventsChart';
 import {useDroppedData} from 'sentry/components/droppedData/useDroppedData';
@@ -20,7 +21,7 @@ import {registerLLMContext} from 'sentry/views/seerExplorer/contexts/registerLLM
 interface DroppedDataDrawerProps {
   dataset: DiscoverDatasets;
   interval?: string;
-  onInvestigate?: () => void;
+  onInvestigate?: (row: ReasonRow) => void;
 }
 
 function DroppedDataDrawerInner({
