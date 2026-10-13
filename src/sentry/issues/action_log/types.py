@@ -9,7 +9,9 @@ import dataclasses
 from enum import IntEnum, StrEnum
 from typing import Any, ClassVar, Literal, NotRequired, Optional, TypeAlias, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from sentry.issues.impact.types import ImpactCitation
 
 SeerPullRequestItem: TypeAlias = dict[str, str | dict[str, str | int]]
 
@@ -82,6 +84,7 @@ class GroupActionType(IntEnum):
     PULL_REQUEST_REOPENED = 31
     PULL_REQUEST_MERGED = 32
     PULL_REQUEST_UNLINKED = 33
+    IMPACT_ASSESSMENT = 34
 
     # Certain GroupActions are mirrors of Activity records.
     # (See ACTIVITY_TYPE_TO_GROUP_ACTION_TYPE for the mapping.)
@@ -547,6 +550,19 @@ class PullRequestUnlinkedAction(GroupAction):
     @classmethod
     def get_type(cls) -> GroupActionType:
         return GroupActionType.PULL_REQUEST_UNLINKED
+
+
+class ImpactAssessmentAction(GroupAction):
+    user_visible = False
+
+    score: float | None = Field(default=None, ge=0, le=100)
+    description: str
+    citations: list[ImpactCitation]
+    source_event_id: str
+
+    @classmethod
+    def get_type(cls) -> GroupActionType:
+        return GroupActionType.IMPACT_ASSESSMENT
 
 
 class GroupActionLogPayload(TypedDict):
