@@ -520,7 +520,7 @@ class SeerSlackRendererInvestigationTest(TestCase):
         assert block.text == text
 
     def test_render_investigation_status_title_only(self) -> None:
-        renderable = NotificationService.render_template(
+        renderable, _ = NotificationService.render_template(
             data=SeerInvestigationStatus(
                 organization_id=1,
                 title="Checkout <errors>",
@@ -542,7 +542,7 @@ class SeerSlackRendererInvestigationTest(TestCase):
         template = SeerInvestigationStatusTemplate()
         data = template.example_data
 
-        renderable = NotificationService.render_template(
+        renderable, _ = NotificationService.render_template(
             data=data, template=template, provider=SlackNotificationProvider
         )
 

@@ -816,7 +816,7 @@ class SlackInvestigationEntrypoint(
             data, fingerprint = build_investigation_status(
                 investigation=investigation, projection=None
             )
-            renderable = NotificationService.render_template(
+            renderable, _ = NotificationService.render_template(
                 data=data,
                 template=SeerInvestigationStatusTemplate(),
                 provider=provider_registry.get(NotificationProviderKey.SLACK),
@@ -940,7 +940,7 @@ class SlackInvestigationEntrypoint(
             return
 
         install = SlackIntegration(model=integration, organization_id=organization_id)
-        renderable = NotificationService.render_template(
+        renderable, _ = NotificationService.render_template(
             data=data,
             template=SeerInvestigationStatusTemplate(),
             provider=provider_registry.get(NotificationProviderKey.SLACK),
