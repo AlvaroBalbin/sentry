@@ -277,6 +277,8 @@ const config = defineConfig({
     'boundaries/legacy-warnings': false,
   },
   ignorePatterns: [
+    'static/packages/icons/**/*',
+    'static/packages/scraps/**/*',
     '.devenv/**/*',
     '.agents/**/*',
     '.github/**/*',

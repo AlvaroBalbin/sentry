@@ -22,6 +22,24 @@ import {parse} from 'yaml';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const runner = path.join(root, 'scripts/custom-oxlint.ts');
 
+test('root lint excludes workspaces that own their lint tasks', () => {
+  const app = 'static/app/components/inspector.tsx';
+  const icons = 'static/packages/icons/src/iconAdd.tsx';
+  const scraps = 'static/packages/scraps/src/layout/index.tsx';
+  const result = spawnSync(
+    process.execPath,
+    [runner, '--debug', 'files', app, icons, scraps],
+    {
+      cwd: root,
+      encoding: 'utf8',
+    }
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert(result.stdout.includes(app), result.stdout);
+  assert(!result.stdout.includes(icons), result.stdout);
+  assert(!result.stdout.includes(scraps), result.stdout);
+});
+
 test('boundary resolver resolves app aliases with workspace project references', async () => {
   const {default: lintConfig} = await import(
     new URL('../oxlint.config.ts', import.meta.url).href

@@ -84,7 +84,7 @@ Extend `tsconfig.base.json` for shared compiler checks. Keep app aliases, enviro
 
 ```bash
 pnpm run lint:js                          # all JS/TS
-pnpm run lint:js components/avatar.tsx    # specific file(s)
+pnpm run lint:js static/app/components/avatar.tsx # scoped root scan, all package tasks
 pnpm --filter @sentry/icons lint          # Icons: JS/TS, CSS
 pnpm --filter @sentry/scraps lint         # Scraps: JS/TS, CSS
 pnpm run lint:format                     # formatting for the whole repository
@@ -97,6 +97,11 @@ Keep their resolver and boundary settings local to the package. Package `lint:js
 tasks enable type-aware rules; root and pre-commit tasks keep the existing policy.
 CSS rules live in `stylelint.base.js`, imported by root and package Stylelint configs.
 Formatting runs only from the root.
+
+Root `lint:js` and `lint:css` run the remaining root scan, then all workspace tasks
+with `--if-present`. Root scans exclude Icons and Scraps. File arguments scope
+the root scan; native options also reach package tasks. Prek uses the same runner.
+Suppression maintenance and config inspection run only the root task.
 
 Incubator rules appear as warnings in editors. The lint wrapper promotes them to errors in the existing oxlint pass in prek, normal lint, and CI so native suppressions and the ratchet remain enforced. The committed `oxlint-suppressions.json` limits existing debt per file and rule. Successful fixes automatically reduce counts for checked files. Fast local prek fixes conservatively retain TypeScript counts until a full type-aware fix or `pnpm run lint:js --prune`. Enrolling rules requires `pnpm run lint:js --enroll --base REF` using trusted source. Inspect live findings with `pnpm run lint:js --backlog`. Put the maintenance flag first. Use `pnpm run lint:js --help` for all options.
 
